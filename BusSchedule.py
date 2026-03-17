@@ -20,7 +20,7 @@ driver.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1128)")
 driver2= webdriver.Chrome(options)
 wait2 = WebDriverWait(driver2,15)
 driver2.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1180)")
-st.write('<b><style> .block-container {padding-top: 5rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 44px} table td {border: none; font-size: 36px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style></b>', unsafe_allow_html=True)
+st.write('<b><style> .block-container {padding-top: 0rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 34px} table td {border: none; font-size: 32px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style></b>', unsafe_allow_html=True)
 
 
 @st.fragment(run_every="60s")
@@ -30,7 +30,7 @@ def Get_Page_Warning(local_driver, local_wait):
         warnings = local_driver.find_elements(By.ID, "noResults")
         for x in warnings:
             if x.text != "":
-                st.markdown(f'<p style="font-weight: bold; font-size:36px; color:orange;">{x.text}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="font-weight: bold; font-size:32px; color:orange;">{x.text}</p>', unsafe_allow_html=True)
     except TimeoutException:
         pass
         
@@ -48,7 +48,7 @@ def Get_Page_Info(local_driver, local_wait):
     if txtHeader == "":
         txtHeader = "No header Result pulled"
 
-    st.markdown(f'<p style="font-weight: bold; font-size:36px;">{txtHeader}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="font-weight: bold; font-size:32px;">{txtHeader}</p>', unsafe_allow_html=True)
     list_of_lists =[]
     try:
         dynamic_element = local_wait.until(EC.presence_of_element_located((By.CLASS_NAME, "header-main")))
