@@ -23,7 +23,7 @@ driver2.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1180)")
 st.write('<b><style> .block-container {padding-top: 0rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 34px} table td {border: none; font-size: 32px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style></b>', unsafe_allow_html=True)
 
 
-@st.fragment(run_every="60s")
+@st.fragment(run_every="15s")
 def Get_Page_Warning(local_driver, local_wait):
     try:
         dynamic_element = local_wait.until(EC.presence_of_element_located((By.ID, "noResults")))
@@ -37,7 +37,7 @@ def Get_Page_Warning(local_driver, local_wait):
     
 
 
-@st.fragment(run_every="60s")
+@st.fragment(run_every="15s")
 def Get_Page_Info(local_driver, local_wait):
     try:
         dynamic_element = local_wait.until(EC.presence_of_element_located((By.CLASS_NAME, "header-result")))
