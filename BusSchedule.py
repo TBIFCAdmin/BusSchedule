@@ -14,7 +14,7 @@ options = Options()
 options.add_argument("--headless=new")
 
 driver = webdriver.Chrome(options)
-wait = WebDriverWait(driver,15)
+wait = WebDriverWait(driver,30)
 driver.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1128)")
 
 driver2= webdriver.Chrome(options)
