@@ -13,11 +13,11 @@ st.set_page_config(layout="wide")
 options = Options()
 options.add_argument("--headless=new")
 
-driver = webdriver.Chrome(options)
+driver = webdriver.FireFox(options)
 wait = WebDriverWait(driver,15)
 driver.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1128)")
 
-driver2= webdriver.Chrome(options)
+driver2= webdriver.FireFox(options)
 wait2 = WebDriverWait(driver2,15)
 driver2.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1180)")
 st.write('<b><style> .block-container {padding-top: 5rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 44px} table td {border: none; font-size: 36px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style></b>', unsafe_allow_html=True)
