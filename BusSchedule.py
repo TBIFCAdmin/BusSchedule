@@ -30,7 +30,7 @@ def Get_Page_Warning(local_driver, local_wait):
         warnings = local_driver.find_elements(By.ID, "noResults")
         for x in warnings:
             if x.text != "":
-                st.markdown(f'<p style="font-weight: bold; font-size:36px; color:orange;">{x.text}</p>', unsafe_allow_html=True)
+                st.markdown(f'<p style="font-size: 1vw; font-weight: bold; font-size:36px; color:orange;">{x.text}</p>', unsafe_allow_html=True)
     except TimeoutException:
         pass
         
