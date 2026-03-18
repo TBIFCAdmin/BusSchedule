@@ -20,7 +20,7 @@ driver.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1128)")
 driver2= webdriver.Chrome(options)
 wait2 = WebDriverWait(driver2,60)
 driver2.get("https://nextlift.ca/#f=Clavet%20%26%20Cumberland%20(1180)")
-st.write("<style> .responsive-text {font-size:2vw; padding:10px;} .block-container {padding-top: 2rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 32px} table td {border: none; font-size: 30px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style>", unsafe_allow_html=True)
+st.write("<style> .responsive-text {font-size: 2vw; padding: 10px;} .block-container {padding-top: 2rem; padding-bottom: 0rem; padding-left: 5rem; padding-right: 5rem;} table {width: 100%; border: none; background-color: #003360;} th {border: none; font-size: 32px} table td {border: none; font-size: 30px} td:first-child {background-color: rgb(191, 79, 157); color: rgb(255, 255, 255)}</style>", unsafe_allow_html=True)
 
 @st.fragment(run_every="15s")
 def Get_Page_Warning(local_driver, local_wait):
