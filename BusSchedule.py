@@ -112,9 +112,11 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 
 
 # 4. Schedule Fragment Function
-@st.fragment(run_every="60s")
+@st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
     driver_instance.get(url)
+
+    driver_instance.refresh()
 
     try:
         wait_instance.until(lambda d: d.find_element(By.CLASS_NAME, "header-result").text.strip() != "")
