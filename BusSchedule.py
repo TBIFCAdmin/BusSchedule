@@ -1,4 +1,5 @@
 import os
+import tempfile
 import streamlit as st
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -7,7 +8,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from tabulate import tabulate
-import time
 
 # 1. Page Config
 st.set_page_config(layout="wide")
@@ -93,47 +93,26 @@ else:
 def get_cached_drivers_dynamic(count):
     drivers = []
     waits = []
+
+    system_temp_folder = tempfile.gettempdir()
+
     for i in range(count):
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
 
-        # CRITICAL LINUX FIXES FOR HANG CONSTRAINTS:
-        # Re-enabling dev-shm-usage but backing it up with standard process isolation
-        options.add_argument(
-            "--disable-dev-shm-usage")  # Forces Chrome to use /tmp instead of small /dev/shm memory blocks
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-extensions")
+        options.add_argument(f"--remote-debugging-port={9222 + i}")
 
-        # Isolate instances to separate memory spaces without hardcoded file-locks
-        options.add_argument("--incognito")
-        options.add_argument("--disable-application-cache")
-        options.add_argument("--disable-setuid-sandbox")
+        worker_data_path = os.path.join(system_temp_folder, f"chrome_bus_schedule_{i}")
+        options.add_argument(f"--user-data-dir={worker_data_path}")
 
-        # Strictly isolate background system interactions to stop multi-threaded deadlock hangs
-        options.add_argument("--single-process")  # Keeps chrome from spawning thousands of sub-threads per worker
-        options.add_argument("--remote-allow-origins=*")
-        options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--disable-crash-reporter")
-        options.add_argument("--disable-in-process-stack-traces")
-        options.add_argument("--disable-logging")
-        options.add_argument("--log-level=3")
-
-        try:
-            d = webdriver.Chrome(options=options)
-
-            # Absolute hard-caps to prevent script threads from hanging indefinitely
-            d.set_page_load_timeout(15)
-            d.set_script_timeout(15)
-
-            w = WebDriverWait(d, 15)
-            drivers.append(d)
-            waits.append(w)
-        except Exception as e:
-            st.error(f"Failed to boot worker thread {i}: {str(e)}")
-
+        d = webdriver.Chrome(options=options)
+        w = WebDriverWait(d, 20)
+        drivers.append(d)
+        waits.append(w)
     return drivers, waits
+
 
 drivers, waits = get_cached_drivers_dynamic(num_urls)
 
@@ -142,7 +121,7 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 @st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
     driver_instance.get(url)
-    #driver_instance.refresh()
+    # FIX 1: Removed driver_instance.refresh() which caused empty tables due to data racing
 
     if f"Header-{url}" not in st.session_state:
         st.session_state[f"Header-{url}"] = ""
@@ -157,8 +136,11 @@ def render_bus_schedule(driver_instance, wait_instance, url, container):
     list_of_lists = []
 
     try:
-        wait_instance.until(EC.presence_of_element_located((By.CLASS_NAME, "header-main")))
+        # FIX 2: Explicitly wait until the actual text layout fields populate with non-empty string objects
+        wait_instance.until(
+            lambda d: len([el for el in d.find_elements(By.CLASS_NAME, "header-main") if el.text.strip()]) > 0)
 
+        # Scrape destination labels and timetable columns securely
         destinations = [el.text.strip() for el in driver_instance.find_elements(By.CLASS_NAME, "header-main") if
                         el.text.strip()]
         times = [el.text.strip() for el in
@@ -200,12 +182,9 @@ def render_global_warnings(drivers_list, container):
 
             elements = d_instance.find_elements(By.ID, "noResults")
             for x in elements:
-                try:
-                    text = x.text.strip()
-                    if text:
-                        unique_warnings.add(text)
-                except StaleElementReferenceException:
-                    continue
+                text = x.text.strip()
+                if text:
+                    unique_warnings.add(text)
         except TimeoutException:
             pass
 
@@ -223,15 +202,12 @@ def render_global_warnings(drivers_list, container):
         container.empty()
 
 
-# 5. Render Layout Core Blocks
-st.markdown('<p class="display-title">Live Transit Departures</p>', unsafe_allow_html=True)
-st.markdown('<p class="display-subtitle">Real-time tracking network monitor</p>', unsafe_allow_html=True)
+# 5. Core View Layout Engine (Stacked Vertical Viewport Setup)
+st.markdown('<p class="display-title">Live Transit Arrival Times</p>', unsafe_allow_html=True)
 
-# Schedules are stacked in a single full-width vertical layout
 for i in range(num_urls):
     schedule_container = st.container()
     render_bus_schedule(drivers[i], waits[i], urls[i], schedule_container)
 
-# Render global notices and system warning flags at the absolute bottom
 warning_container = st.container()
 render_global_warnings(drivers, warning_container)
