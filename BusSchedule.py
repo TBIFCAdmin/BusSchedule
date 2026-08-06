@@ -90,7 +90,6 @@ else:
 
 # 3. Dynamic Driver Caching
 @st.cache_resource
-@st.cache_resource
 def get_cached_drivers_dynamic(count):
     drivers = []
     waits = []
@@ -103,10 +102,13 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-extensions")
 
-        # Unique port and profile mappings to stop collision/crosstalk bugs
-        options.add_argument(f"--remote-debugging-port={9222 + i}")
-        options.add_argument(f"--user-data-dir=/tmp/chrome_user_data_{i}")
-        options.add_argument(f"--disk-cache-dir=/tmp/chrome_disk_cache_{i}")
+        # CRITICAL FIX FOR MULTI-INSTANCE STABILITY ON LINUX:
+        # Launch each instance as an entirely fresh, isolated ephemeral process.
+        # This completely stops profile/port collision without breaking system permissions.
+        options.add_argument("--incognito")  # Forces separate, isolated cache pools
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-application-cache")
+        options.add_argument("--disable-setuid-sandbox")
 
         options.add_argument("--remote-allow-origins=*")
         options.add_argument("--disable-software-rasterizer")
