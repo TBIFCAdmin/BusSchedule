@@ -97,19 +97,22 @@ def get_cached_drivers_dynamic(count):
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
+
+        # CRITICAL LINUX FIXES FOR HANG CONSTRAINTS:
+        # Re-enabling dev-shm-usage but backing it up with standard process isolation
+        options.add_argument(
+            "--disable-dev-shm-usage")  # Forces Chrome to use /tmp instead of small /dev/shm memory blocks
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-extensions")
 
-        # CRITICAL FIX FOR MULTI-INSTANCE STABILITY ON LINUX:
-        # Launch each instance as an entirely fresh, isolated ephemeral process.
-        # This completely stops profile/port collision without breaking system permissions.
-        options.add_argument("--incognito")  # Forces separate, isolated cache pools
-        options.add_argument("--disable-extensions")
+        # Isolate instances to separate memory spaces without hardcoded file-locks
+        options.add_argument("--incognito")
         options.add_argument("--disable-application-cache")
         options.add_argument("--disable-setuid-sandbox")
 
+        # Strictly isolate background system interactions to stop multi-threaded deadlock hangs
+        options.add_argument("--single-process")  # Keeps chrome from spawning thousands of sub-threads per worker
         options.add_argument("--remote-allow-origins=*")
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-crash-reporter")
@@ -119,9 +122,12 @@ def get_cached_drivers_dynamic(count):
 
         try:
             d = webdriver.Chrome(options=options)
-            d.set_page_load_timeout(30)
-            d.set_script_timeout(30)
-            w = WebDriverWait(d, 20)
+
+            # Absolute hard-caps to prevent script threads from hanging indefinitely
+            d.set_page_load_timeout(15)
+            d.set_script_timeout(15)
+
+            w = WebDriverWait(d, 15)
             drivers.append(d)
             waits.append(w)
         except Exception as e:
