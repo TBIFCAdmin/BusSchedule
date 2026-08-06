@@ -1,5 +1,6 @@
 import os
 import tempfile
+import gc  # Added for manual memory reclamation
 import streamlit as st
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -121,7 +122,6 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 @st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
     driver_instance.get(url)
-    # FIX 1: Removed driver_instance.refresh() which caused empty tables due to data racing
 
     if f"Header-{url}" not in st.session_state:
         st.session_state[f"Header-{url}"] = ""
@@ -136,11 +136,9 @@ def render_bus_schedule(driver_instance, wait_instance, url, container):
     list_of_lists = []
 
     try:
-        # FIX 2: Explicitly wait until the actual text layout fields populate with non-empty string objects
         wait_instance.until(
             lambda d: len([el for el in d.find_elements(By.CLASS_NAME, "header-main") if el.text.strip()]) > 0)
 
-        # Scrape destination labels and timetable columns securely
         destinations = [el.text.strip() for el in driver_instance.find_elements(By.CLASS_NAME, "header-main") if
                         el.text.strip()]
         times = [el.text.strip() for el in
@@ -168,6 +166,14 @@ def render_bus_schedule(driver_instance, wait_instance, url, container):
         output_html += "<p style='color: #8E9AA8; font-size: 2.6vh; font-style: italic; padding: 20px;'>No upcoming departures scheduled for this terminal block.</p>"
 
     container.markdown(output_html, unsafe_allow_html=True)
+
+    # MEMORY LEAK MITIGATION 1: Wipe the headless browser's internal data caches after rendering
+    try:
+        driver_instance.delete_all_cookies()
+        driver_instance.execute_cdp_cmd("Network.clearBrowserCache", {})
+        driver_instance.execute_cdp_cmd("Network.clearBrowserCookies", {})
+    except Exception:
+        pass
 
 
 # --- STANDALONE BOTTOM WARNING FRAGMENT ---
@@ -211,3 +217,6 @@ for i in range(num_urls):
 
 warning_container = st.container()
 render_global_warnings(drivers, warning_container)
+
+# MEMORY LEAK MITIGATION 2: Explicitly garbage collect dangling strings after the main pass runs
+gc.collect()
