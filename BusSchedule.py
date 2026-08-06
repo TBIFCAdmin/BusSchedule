@@ -98,14 +98,17 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        # Removed explicit ports and --user-data-dir to let Selenium isolate profiles natively
+
+        # CRITICAL LINUX FIXES:
+        options.add_argument("--disable-gpu")  # Prevents crashes when no physical GPU exists
+        options.add_argument("--window-size=1920,1080")  # Explicitly sets viewport sizes for virtual frames
+        options.add_argument("--disable-extensions")  # Blocks unexpected extension initialization errors
 
         d = webdriver.Chrome(options=options)
         w = WebDriverWait(d, 20)
         drivers.append(d)
         waits.append(w)
     return drivers, waits
-
 
 drivers, waits = get_cached_drivers_dynamic(num_urls)
 
