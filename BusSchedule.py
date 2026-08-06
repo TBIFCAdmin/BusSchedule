@@ -93,21 +93,36 @@ else:
 def get_cached_drivers_dynamic(count):
     drivers = []
     waits = []
-    for _ in range(count):
+    for i in range(count):
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-extensions")
 
-        # CRITICAL LINUX FIXES:
-        options.add_argument("--disable-gpu")  # Prevents crashes when no physical GPU exists
-        options.add_argument("--window-size=1920,1080")  # Explicitly sets viewport sizes for virtual frames
-        options.add_argument("--disable-extensions")  # Blocks unexpected extension initialization errors
+        # CRITICAL LINUX INTERNALS FOR HANG RECOVERY:
+        options.add_argument("--remote-allow-origins=*")  # Prevents network hook blocking
+        options.add_argument("--disable-software-rasterizer")  # Turns off rendering fallbacks
+        options.add_argument("--disable-crash-reporter")  # Stops background logging locks
+        options.add_argument("--disable-in-process-stack-traces")  # Prevents core dumps hanging
+        options.add_argument("--disable-logging")  # Keeps stdin/stdout clean
+        options.add_argument("--log-level=3")  # Silences fatal system logging hangs
 
-        d = webdriver.Chrome(options=options)
-        w = WebDriverWait(d, 20)
-        drivers.append(d)
-        waits.append(w)
+        try:
+            d = webdriver.Chrome(options=options)
+
+            # Prevent infinite script hangs if page connectivity drops on server
+            d.set_page_load_timeout(30)
+            d.set_script_timeout(30)
+
+            w = WebDriverWait(d, 20)
+            drivers.append(d)
+            waits.append(w)
+        except Exception as e:
+            st.error(f"Failed to boot worker thread {i}: {str(e)}")
+
     return drivers, waits
 
 drivers, waits = get_cached_drivers_dynamic(num_urls)
