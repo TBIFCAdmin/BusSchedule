@@ -90,6 +90,7 @@ else:
 
 # 3. Dynamic Driver Caching
 @st.cache_resource
+@st.cache_resource
 def get_cached_drivers_dynamic(count):
     drivers = []
     waits = []
@@ -102,13 +103,11 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-extensions")
 
-        # CRITICAL FIX FOR DEVTOOLSACTIVEPORT:
-        # Assign a completely unique user profile space and disk cache directory per instance
+        # Unique port and profile mappings to stop collision/crosstalk bugs
+        options.add_argument(f"--remote-debugging-port={9222 + i}")
         options.add_argument(f"--user-data-dir=/tmp/chrome_user_data_{i}")
         options.add_argument(f"--disk-cache-dir=/tmp/chrome_disk_cache_{i}")
-        options.add_argument(f"--data-path=/tmp/chrome_data_path_{i}")
 
-        # Keep background system integrations detached to stop crashes
         options.add_argument("--remote-allow-origins=*")
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-crash-reporter")
@@ -118,11 +117,8 @@ def get_cached_drivers_dynamic(count):
 
         try:
             d = webdriver.Chrome(options=options)
-
-            # Setup network failure fallbacks
             d.set_page_load_timeout(30)
             d.set_script_timeout(30)
-
             w = WebDriverWait(d, 20)
             drivers.append(d)
             waits.append(w)
