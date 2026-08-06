@@ -5,8 +5,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from tabulate import tabulate
+import time
 
 # 1. Page Config
 st.set_page_config(layout="wide")
@@ -44,7 +45,7 @@ st.write(
     # Terminal Flight Board Styling (Dark background, Amber/Teal text grid)
     'table {width: 100%; border: none; background-color: #111625; margin-bottom: 1.5vh; border-collapse: collapse; box-shadow: 0px 4px 15px rgba(0,0,0,0.5);}'
     'th {padding: 12px 16px; border: none; color: #8E9AA8 !important; text-align: left; background-color: #171E31; text-transform: uppercase; font-weight: 700; letter-spacing: 1px;}'
-    'table td {border-none; padding: 14px 16px; color: #FFFFFF !important; border-bottom: 2px solid #1C243B; font-variant-numeric: tabular-nums;}'
+    'table td {border: none; padding: 14px 16px; color: #FFFFFF !important; border-bottom: 2px solid #1C243B; font-variant-numeric: tabular-nums;}'
 
     # High visibility column mappings
     'td:first-child {background-color: #FFB800 !important; color: #000000 !important; font-weight: 900; text-align: center; width: 12%; font-size: 110%;}'
@@ -90,17 +91,15 @@ else:
 # 3. Dynamic Driver Caching
 @st.cache_resource
 def get_cached_drivers_dynamic(count):
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    options.add_argument("--remote-debugging-port=9222")
-    options.add_argument("--user-data-dir=/tmp/chrome_bus_schedule")
-
     drivers = []
     waits = []
     for _ in range(count):
+        options = Options()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        # Removed explicit ports and --user-data-dir to let Selenium isolate profiles natively
+
         d = webdriver.Chrome(options=options)
         w = WebDriverWait(d, 20)
         drivers.append(d)
@@ -115,37 +114,37 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 @st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
     driver_instance.get(url)
+    #driver_instance.refresh()
 
-    driver_instance.refresh()
+    if f"Header-{url}" not in st.session_state:
+        st.session_state[f"Header-{url}"] = ""
 
-    try:
-        wait_instance.until(lambda d: d.find_element(By.CLASS_NAME, "header-result").text.strip() != "")
-        txtHeader = driver_instance.find_element(By.CLASS_NAME, "header-result").text
-    except TimeoutException:
-        txtHeader = "SYSTEM TIMEOUT - REFRESHING DATA"
-
-    if not txtHeader or txtHeader.strip() == "":
-        txtHeader = "BUS DEPOT DEPARTURES"
+    if st.session_state[f"Header-{url}"] in ["", "Please define your search..."]:
+        try:
+            wait_instance.until(lambda d: d.find_element(By.CLASS_NAME, "header-result").text.strip() != "")
+            st.session_state[f"Header-{url}"] = driver_instance.find_element(By.CLASS_NAME, "header-result").text
+        except TimeoutException:
+            st.session_state[f"Header-{url}"] = "SYSTEM TIMEOUT - REFRESHING DATA"
 
     list_of_lists = []
 
     try:
         wait_instance.until(EC.presence_of_element_located((By.CLASS_NAME, "header-main")))
-        elements = driver_instance.find_elements(By.CLASS_NAME, "header-main")
-        for x in elements:
-            if x.text.strip() != "":
-                sublist = ["17", x.text]
-                list_of_lists.append(sublist)
-    except TimeoutException:
+
+        destinations = [el.text.strip() for el in driver_instance.find_elements(By.CLASS_NAME, "header-main") if
+                        el.text.strip()]
+        times = [el.text.strip() for el in
+                 driver_instance.find_elements(By.CLASS_NAME, "line-prop-addon-image-container-time") if
+                 el.text.strip()]
+
+        for idx, dest in enumerate(destinations):
+            arrival_time = times[idx] if idx < len(times) else "N/A"
+            list_of_lists.append(["17", dest, arrival_time])
+
+    except (TimeoutException, StaleElementReferenceException):
         pass
 
-    elements = driver_instance.find_elements(By.CLASS_NAME, "line-prop-addon-image-container-time")
-    y = 0
-    for x in elements:
-        if x.text.strip() != "" and y < len(list_of_lists):
-            list_of_lists[y].append(x.text)
-            y = y + 1
-
+    txtHeader = st.session_state[f"Header-{url}"]
     output_html = f'<p class="schedule-header">{txtHeader}</p>'
 
     if list_of_lists:
@@ -173,9 +172,12 @@ def render_global_warnings(drivers_list, container):
 
             elements = d_instance.find_elements(By.ID, "noResults")
             for x in elements:
-                text = x.text.strip()
-                if text:
-                    unique_warnings.add(text)
+                try:
+                    text = x.text.strip()
+                    if text:
+                        unique_warnings.add(text)
+                except StaleElementReferenceException:
+                    continue
         except TimeoutException:
             pass
 
@@ -197,16 +199,11 @@ def render_global_warnings(drivers_list, container):
 st.markdown('<p class="display-title">Live Transit Departures</p>', unsafe_allow_html=True)
 st.markdown('<p class="display-subtitle">Real-time tracking network monitor</p>', unsafe_allow_html=True)
 
-if num_urls <= 2:
-    for i in range(num_urls):
-        schedule_container = st.empty()
-        render_bus_schedule(drivers[i], waits[i], urls[i], schedule_container)
-else:
-    cols = st.columns(num_urls)
-    for i in range(num_urls):
-        with cols[i]:
-            schedule_container = st.empty()
-            render_bus_schedule(drivers[i], waits[i], urls[i], schedule_container)
+# Schedules are stacked in a single full-width vertical layout
+for i in range(num_urls):
+    schedule_container = st.container()
+    render_bus_schedule(drivers[i], waits[i], urls[i], schedule_container)
 
-warning_container = st.empty()
+# Render global notices and system warning flags at the absolute bottom
+warning_container = st.container()
 render_global_warnings(drivers, warning_container)
