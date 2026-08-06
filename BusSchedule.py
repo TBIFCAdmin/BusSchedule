@@ -102,18 +102,24 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-extensions")
 
-        # CRITICAL LINUX INTERNALS FOR HANG RECOVERY:
-        options.add_argument("--remote-allow-origins=*")  # Prevents network hook blocking
-        options.add_argument("--disable-software-rasterizer")  # Turns off rendering fallbacks
-        options.add_argument("--disable-crash-reporter")  # Stops background logging locks
-        options.add_argument("--disable-in-process-stack-traces")  # Prevents core dumps hanging
-        options.add_argument("--disable-logging")  # Keeps stdin/stdout clean
-        options.add_argument("--log-level=3")  # Silences fatal system logging hangs
+        # CRITICAL FIX FOR DEVTOOLSACTIVEPORT:
+        # Assign a completely unique user profile space and disk cache directory per instance
+        options.add_argument(f"--user-data-dir=/tmp/chrome_user_data_{i}")
+        options.add_argument(f"--disk-cache-dir=/tmp/chrome_disk_cache_{i}")
+        options.add_argument(f"--data-path=/tmp/chrome_data_path_{i}")
+
+        # Keep background system integrations detached to stop crashes
+        options.add_argument("--remote-allow-origins=*")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-in-process-stack-traces")
+        options.add_argument("--disable-logging")
+        options.add_argument("--log-level=3")
 
         try:
             d = webdriver.Chrome(options=options)
 
-            # Prevent infinite script hangs if page connectivity drops on server
+            # Setup network failure fallbacks
             d.set_page_load_timeout(30)
             d.set_script_timeout(30)
 
