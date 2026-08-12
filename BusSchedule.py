@@ -103,12 +103,22 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
 
+        # --- ADD THESE LINUX SPECIFIC FIXES ---
+        options.add_argument("--disable-gpu")  # Disables hardware acceleration
+        options.add_argument("--disable-software-rasterizer")  # Prevents falling back to slow raster rendering
+        options.add_argument("--disable-extensions")  # Speeds up containerized/headless execution
+        options.add_argument("--blink-settings=imagesEnabled=false")  # Stops loading images to save memory/speed up
+        # --------------------------------------
+
         options.add_argument(f"--remote-debugging-port={9222 + i}")
 
         worker_data_path = os.path.join(system_temp_folder, f"chrome_bus_schedule_{i}")
         options.add_argument(f"--user-data-dir={worker_data_path}")
 
         d = webdriver.Chrome(options=options)
+
+        # Lower this value slightly if testing; 20 seconds is high
+        # and will stall your layout engine completely if one URL fails
         w = WebDriverWait(d, 20)
         drivers.append(d)
         waits.append(w)
@@ -121,7 +131,11 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 # 4. Schedule Fragment Function
 @st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
-    driver_instance.get(url)
+    try:
+        driver_instance.get(url)
+    except Exception as e:
+        container.error(f"Failed to access URL layout: {e}")
+        return
 
     if f"Header-{url}" not in st.session_state:
         st.session_state[f"Header-{url}"] = ""
@@ -136,18 +150,84 @@ def render_bus_schedule(driver_instance, wait_instance, url, container):
     list_of_lists = []
 
     try:
+        # Core parent wait: Ensures transit entry items are fully built
         wait_instance.until(
-            lambda d: len([el for el in d.find_elements(By.CLASS_NAME, "header-main") if el.text.strip()]) > 0)
+            lambda d: len([el for el in d.find_elements(By.CLASS_NAME, "header-main") if el.text.strip()]) > 0
+        )
 
+        # Pull elements safely
         destinations = [el.text.strip() for el in driver_instance.find_elements(By.CLASS_NAME, "header-main") if
                         el.text.strip()]
-        times = [el.text.strip() for el in
-                 driver_instance.find_elements(By.CLASS_NAME, "line-prop-addon-image-container-time") if
-                 el.text.strip()]
 
+        # --- FIXED FOR LINUX HEADLESS: RAW ATTRIBUTE SCRAPER ---
+        # NextLift embeds route information in raw html properties.
+        # Using get_attribute("textContent") bypasses headless frame occlusion entirely.
+        routes = []
+        route_elements = driver_instance.find_elements(By.CLASS_NAME, "line-prop-addon-image-container-route")
+
+        for el in route_elements:
+            # Force pull from raw text layer, skipping Selenium's visibility engine rules
+            route_num = el.get_attribute("textContent")
+            if route_num:
+                route_num = route_num.strip()
+
+            if not route_num:
+                # Secondary fallback: Extract numeric values straight from raw outer HTML tags
+                try:
+                    outer = el.get_attribute("outerHTML")
+                    # Quick split to catch values wrapped in inner structures
+                    route_num = outer.split(">")[1].split("<")[0].strip()
+                except Exception:
+                    route_num = "?"
+
+            # DIRECT HTML ATTRIBUTE EXTRACTION FOR COLOR MATCHING
+            # Since value_of_css_property returns blank in headless boxes,
+            # we read the style property directly if configured by NextLift
+            try:
+                style_attr = el.get_attribute("style") or ""
+                bg_color = "#FFB800"  # default brand amber
+                text_color = "#000000"  # default dark text
+
+                if "background-color" in style_attr:
+                    bg_color = style_attr.split("background-color:")[1].split(";")[0].strip()
+                if "color" in style_attr and "background-color" not in style_attr.split("color")[0]:
+                    text_color = style_attr.split("color:")[1].split(";")[0].strip()
+            except Exception:
+                bg_color = "#FFB800"
+                text_color = "#000000"
+
+            routes.append({
+                "number": route_num if route_num else "?",
+                "bg": bg_color,
+                "fg": text_color
+            })
+
+        # Process arrival times via raw layers
+        times = []
+        time_elements = driver_instance.find_elements(By.CLASS_NAME, "line-prop-addon-image-container-time")
+        for el in time_elements:
+            text = el.get_attribute("textContent")
+            times.append(text.strip() if text else "N/A")
+
+        # Zip elements together into customized layout structures
         for idx, dest in enumerate(destinations):
             arrival_time = times[idx] if idx < len(times) else "N/A"
-            list_of_lists.append(["17", dest, arrival_time])
+            route_data = routes[idx] if idx < len(routes) else {"number": "?", "bg": "#FFB800", "fg": "#000000"}
+
+            # Format row data using customized styling matching individual route configurations
+            styled_route = (
+                f'<span style="background-color: {route_data["bg"]}; '
+                f'color: {route_data["fg"]}; '
+                f'padding: 6px 12px; '
+                f'border-radius: 4px; '
+                f'display: inline-block; '
+                f'min-width: 50px; '
+                f'text-align: center; '
+                f'font-weight: 900;'
+                f'box-shadow: 0px 2px 4px rgba(0,0,0,0.3);">'
+                f'{route_data["number"]}</span>'
+            )
+            list_of_lists.append([styled_route, dest, arrival_time])
 
     except (TimeoutException, StaleElementReferenceException):
         pass
@@ -161,13 +241,13 @@ def render_bus_schedule(driver_instance, wait_instance, url, container):
             headers=["Route", "Destination", "Scheduled Arrival"],
             tablefmt="html"
         )
-        output_html += table
+        # Clear out default table formatting constraints to support nested markup cells
+        output_html += table.replace("&lt;", "<").replace("&gt;", ">")
     else:
         output_html += "<p style='color: #8E9AA8; font-size: 2.6vh; font-style: italic; padding: 20px;'>No upcoming departures scheduled for this terminal block.</p>"
 
     container.markdown(output_html, unsafe_allow_html=True)
 
-    # MEMORY LEAK MITIGATION 1: Wipe the headless browser's internal data caches after rendering
     try:
         driver_instance.delete_all_cookies()
         driver_instance.execute_cdp_cmd("Network.clearBrowserCache", {})
@@ -198,7 +278,7 @@ def render_global_warnings(drivers_list, container):
 
     if found_warnings != st.session_state.has_warnings:
         st.session_state.has_warnings = found_warnings
-        st.rerun()
+        #st.rerun()
 
     if unique_warnings:
         combined_text = "  ⚠️  ".join(unique_warnings)
