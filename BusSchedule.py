@@ -201,7 +201,7 @@ def get_route_style(route_short_name):
         "12": {"bg": "#D96B27", "fg": "#FFFFFF"},  # East End (Copper)
         "14": {"bg": "#4A777A", "fg": "#FFFFFF"},  # Arthur (Slate)
         "16": {"bg": "#005A9C", "fg": "#FFFFFF"},  # Balmoral (Royal Blue)
-        "17": {"bg": "#887B73", "fg": "#FFFFFF"},  # Special / Express (Gray)
+        "17": {"bg": "#BF4F9D", "fg": "#FFFFFF"},  # Current River (Pink)
     }
 
     if name in color_map:
