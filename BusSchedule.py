@@ -253,6 +253,7 @@ drivers, waits = get_cached_drivers_dynamic(num_urls)
 # 4. Schedule Fragment Function
 @st.fragment(run_every="20s")
 def render_bus_schedule(driver_instance, wait_instance, url, container):
+    table_rows = ""
     try:
         driver_instance.get(url)
     except Exception as e:
