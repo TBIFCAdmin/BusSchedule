@@ -229,7 +229,7 @@ def get_cached_drivers_dynamic(count):
         options.add_argument("--disable-gpu")  # Disables hardware acceleration
         options.add_argument("--disable-software-rasterizer")  # Prevents falling back to slow raster rendering
         options.add_argument("--disable-extensions")  # Speeds up containerized/headless execution
-        options.add_argument("--blink-settings=imagesEnabled=false")  # Stops loading images to save memory/speed up
+        #options.add_argument("--blink-settings=imagesEnabled=false")  # Stops loading images to save memory/speed up
         # --------------------------------------
 
         options.add_argument(f"--remote-debugging-port={9222 + i}")
